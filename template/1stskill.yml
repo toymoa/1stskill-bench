@@ -22,8 +22,8 @@ permissions:
 
 jobs:
   benchmark:
-    # Replace the placeholder with a commit SHA of toymoa/1stskill-bench.
-    uses: "toymoa/1stskill-bench/.github/workflows/benchmark.yml@<REPLACE_WITH_RUNNER_COMMIT_SHA>"
+    # Pinned commit of toymoa/1stskill-bench; the site accepts only allowed runner commits.
+    uses: "toymoa/1stskill-bench/.github/workflows/benchmark.yml@6eeada381016c7def3d8246ee6ce539e46092aba"
     with:
       # Your 1stskill.com nickname, and the skill folder if it is not the repository root.
       account: YOUR_1STSKILL_NICKNAME
