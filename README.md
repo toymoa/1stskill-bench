@@ -10,8 +10,8 @@ participant's own API key, and uploads each task's patch. Scoring happens on the
 1. Register your public skill repository at https://1stskill.com.
 2. Copy [template/1stskill.yml](template/1stskill.yml) into your repository's
    `.github/workflows/`, set `account` to your 1stskill.com nickname (and `skill-path`
-   if the skill is not at the repository root), replace the commit placeholder with a
-   commit of this repository, and add one secret: `ANTHROPIC_API_KEY` or
+   if the skill is not at the repository root), keep the pinned runner commit in the
+   `uses:` line, and add one secret: `ANTHROPIC_API_KEY` or
    `OPENAI_API_KEY`.
 3. Run the workflow from your repository's Actions tab and choose `claude` or `codex`.
 
