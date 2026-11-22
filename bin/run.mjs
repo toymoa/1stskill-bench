@@ -124,13 +124,29 @@ function cliArgs(cli, model) {
       ];
 }
 
+const childEnvironment = (cli) =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key]) =>
+        !/^ACTIONS_/.test(key) &&
+        !['GITHUB_TOKEN', 'GH_TOKEN', 'GA_ACCOUNT', 'RUNNER_COMMIT'].includes(key) &&
+        key !== (cli === 'codex' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'),
+    ),
+  );
+
 function runCli({ cli, model, prompt, cwd, timeoutMs }) {
   return new Promise((resolve) => {
     const child = spawn(cli, cliArgs(cli, model), {
       cwd,
-      env: process.env,
+      env: childEnvironment(cli),
       stdio: ['pipe', 'pipe', 'pipe'],
+      detached: true,
     });
+    const killGroup = () => {
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {}
+    };
     let stdout = '',
       stderr = '',
       bytes = 0,
@@ -145,7 +161,7 @@ function runCli({ cli, model, prompt, cwd, timeoutMs }) {
     };
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
+      killGroup();
     }, timeoutMs);
     for (const [stream, key] of [
       [child.stdout, 'stdout'],
@@ -155,7 +171,7 @@ function runCli({ cli, model, prompt, cwd, timeoutMs }) {
         bytes += chunk.length;
         if (bytes > OUTPUT_LIMIT) {
           outputLimited = true;
-          child.kill('SIGKILL');
+          killGroup();
           return;
         }
         if (key === 'stdout') stdout += chunk;
@@ -166,9 +182,10 @@ function runCli({ cli, model, prompt, cwd, timeoutMs }) {
     child.on('error', () =>
       finish({ exitCode: 1, stdout, stderr, timedOut, outputLimited, startError: true }),
     );
-    child.on('exit', (code) =>
-      finish({ exitCode: code ?? 1, stdout, stderr, timedOut, outputLimited, startError: false }),
-    );
+    child.on('exit', (code) => {
+      killGroup();
+      finish({ exitCode: code ?? 1, stdout, stderr, timedOut, outputLimited, startError: false });
+    });
   });
 }
 
@@ -246,6 +263,8 @@ async function main() {
       if (parsed.inputTokens !== null || parsed.outputTokens !== null) usage = parsed;
       removeSkill(workspace, options.cli);
       try {
+        if (treeHash(tree(task.root)) !== taskTreeHash[task.id])
+          throw new Error('task files changed during the run');
         artifact = extractPatch(task, workspace);
       } catch (error) {
         issues.push(error.message);

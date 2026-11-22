@@ -58,6 +58,10 @@ These were not confirmed by a live run when this repository was created:
   against its release notes.
 - The runner commit is read from the `job_workflow_sha` claim of the job's GitHub OIDC
   token; confirm with a dry run before participants use the template.
+- The workflow runs in three jobs: `resolve` reads the runner commit, `run` executes the
+  CLI with read-only permissions and no OIDC or GitHub tokens in the CLI's environment,
+  and `attest` signs and submits the result. `actions/download-artifact@v7` is pinned by
+  major tag like the other actions.
 - The submission endpoint `https://1stskill.com/api/ga/submissions` is not deployed yet.
   Until it is, the attested result stays an Actions artifact.
 - CLI flags, version output and default models depend on the installed CLI version; the
