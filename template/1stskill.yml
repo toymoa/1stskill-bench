@@ -1,0 +1,33 @@
+name: 1stskill benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      cli:
+        description: CLI to run
+        required: true
+        type: choice
+        options:
+          - claude
+          - codex
+      model:
+        description: Optional model id; empty uses the CLI default
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  benchmark:
+    # Replace the placeholder with a commit SHA of toymoa/1stskill-bench.
+    uses: "toymoa/1stskill-bench/.github/workflows/benchmark.yml@<REPLACE_WITH_RUNNER_COMMIT_SHA>"
+    with:
+      # Your 1stskill.com nickname, and the skill folder if it is not the repository root.
+      account: YOUR_1STSKILL_NICKNAME
+      skill-path: '.'
+      cli: ${{ inputs.cli }}
+      model: ${{ inputs.model }}
+    secrets: inherit

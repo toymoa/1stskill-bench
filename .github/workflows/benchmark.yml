@@ -1,0 +1,132 @@
+name: 1stskill GA benchmark
+
+on:
+  workflow_call:
+    inputs:
+      cli:
+        description: CLI to run (claude or codex)
+        required: true
+        type: string
+      account:
+        description: Your 1stskill.com nickname; results are credited only to this account
+        required: true
+        type: string
+      skill-path:
+        description: Folder of the registered skill inside the repository
+        required: false
+        type: string
+        default: '.'
+      model:
+        description: Model id passed to the CLI; empty uses the CLI default
+        required: false
+        type: string
+        default: ''
+      submit-url:
+        description: GA submission endpoint; empty keeps the artifact only
+        required: false
+        type: string
+        default: https://1stskill.com/api/ga/submissions
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Checkout submitted skill repository
+        uses: actions/checkout@v7
+        with:
+          path: skill
+
+      - name: Resolve runner commit
+        id: runner
+        run: |
+          token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).value))')
+          sha=$(printf '%s' "$token" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const p=JSON.parse(Buffer.from(s.split(".")[1],"base64url"));if(!/^toymoa\/1stskill-bench\//.test(p.job_workflow_ref||""))process.exit(3);process.stdout.write(p.job_workflow_sha)})')
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout benchmark runner
+        uses: actions/checkout@v7
+        with:
+          repository: toymoa/1stskill-bench
+          ref: ${{ steps.runner.outputs.sha }}
+          path: bench
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install latest CLI
+        env:
+          CLI: ${{ inputs.cli }}
+        run: |
+          case "$CLI" in
+            claude) npm install -g @anthropic-ai/claude-code ;;
+            codex) npm install -g @openai/codex ;;
+            *) echo "Unsupported cli: $CLI" >&2; exit 2 ;;
+          esac
+          "$CLI" --version > cli-version.txt
+          cat cli-version.txt
+
+      - name: Run benchmark
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RUNNER_COMMIT: ${{ steps.runner.outputs.sha }}
+          GA_ACCOUNT: ${{ inputs.account }}
+          SKILL_PATH: ${{ inputs.skill-path }}
+          CLI: ${{ inputs.cli }}
+          MODEL: ${{ inputs.model }}
+        run: |
+          args=(--cli "$CLI" --skill "skill/$SKILL_PATH" --out 1stskill-result.json)
+          if [ -n "$MODEL" ]; then args+=(--model "$MODEL"); fi
+          node bench/bin/run.mjs "${args[@]}"
+
+      - name: Attest result
+        id: attest
+        uses: actions/attest@v4
+        with:
+          subject-path: 1stskill-result.json
+
+      - name: Collect attestation bundle
+        if: steps.attest.outcome == 'success'
+        run: cp "${{ steps.attest.outputs.bundle-path }}" 1stskill-result.sigstore.json
+
+      - name: Upload result artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: 1stskill-result
+          path: |
+            1stskill-result.json
+            cli-version.txt
+            1stskill-result.sigstore.json
+          if-no-files-found: warn
+
+      - name: Submit result
+        if: always()
+        continue-on-error: true
+        env:
+          SUBMIT_URL: ${{ inputs.submit-url }}
+        run: |
+          if [ -z "$SUBMIT_URL" ]; then echo "No submit URL configured"; exit 0; fi
+          if [ ! -f 1stskill-result.json ]; then echo "No result file to submit"; exit 1; fi
+          node --input-type=module -e "
+          import { existsSync, readFileSync } from 'node:fs';
+          const body = { result: readFileSync('1stskill-result.json', 'utf8') };
+          if (existsSync('1stskill-result.sigstore.json')) body.bundle = JSON.parse(readFileSync('1stskill-result.sigstore.json', 'utf8'));
+          const response = await fetch(process.env.SUBMIT_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+          process.stdout.write(response.status + ' ' + (await response.text()) + '\n');
+          if (!response.ok) process.exitCode = 1;
+          "
