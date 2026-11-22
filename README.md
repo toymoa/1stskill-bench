@@ -1,5 +1,7 @@
 # 1stskill benchmark runner
 
+English · [한국어](README.ko.md)
+
 Public runner for the [1stskill](https://1stskill.com) GA benchmark. It runs the ten
 public coding tasks with the Claude Code or Codex CLI on GitHub Actions, using the
 participant's own API key, and uploads each task's patch. Scoring happens on the
