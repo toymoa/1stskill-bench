@@ -56,6 +56,9 @@ jobs:
     timeout-minutes: 350
     permissions:
       contents: read
+    outputs:
+      digest: ${{ steps.digest.outputs.sha256 }}
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - name: Checkout submitted skill repository
         uses: actions/checkout@v7
@@ -101,7 +104,12 @@ jobs:
           if [ -n "$MODEL" ]; then args+=(--model "$MODEL"); fi
           node bench/bin/run.mjs "${args[@]}"
 
+      - name: Record result digest
+        id: digest
+        run: echo "sha256=$(sha256sum out/1stskill-result.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
       - name: Upload unsigned result
+        id: upload
         uses: actions/upload-artifact@v7
         with:
           name: 1stskill-unsigned
@@ -118,12 +126,15 @@ jobs:
       - name: Download unsigned result
         uses: actions/download-artifact@v7
         with:
-          name: 1stskill-unsigned
+          artifact-ids: ${{ needs.run.outputs.artifact-id }}
+          merge-multiple: true
 
-      - name: Check runner commit
+      - name: Check result digest and runner commit
         env:
           RUNNER_COMMIT: ${{ needs.resolve.outputs.sha }}
+          DIGEST: ${{ needs.run.outputs.digest }}
         run: |
+          echo "$DIGEST  1stskill-result.json" | sha256sum -c -
           node -e 'const r=JSON.parse(require("fs").readFileSync("1stskill-result.json","utf8"));if(r.runner?.commit!==process.env.RUNNER_COMMIT){console.error("runner commit mismatch");process.exit(1)}'
 
       - name: Attest result

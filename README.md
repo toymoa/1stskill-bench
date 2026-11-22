@@ -60,7 +60,9 @@ These were not confirmed by a live run when this repository was created:
   token; confirm with a dry run before participants use the template.
 - The workflow runs in three jobs: `resolve` reads the runner commit, `run` executes the
   CLI with read-only permissions and no OIDC or GitHub tokens in the CLI's environment,
-  and `attest` signs and submits the result. `actions/download-artifact@v7` is pinned by
+  and `attest` downloads the result by artifact id, checks its SHA-256 against the `run`
+  job output, then signs and submits it. `artifact-ids` on `actions/download-artifact` is
+  unverified for the pinned major. `actions/download-artifact@v7` is pinned by
   major tag like the other actions.
 - The submission endpoint `https://1stskill.com/api/ga/submissions` is not deployed yet.
   Until it is, the attested result stays an Actions artifact.
