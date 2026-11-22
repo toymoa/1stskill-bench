@@ -23,7 +23,7 @@ permissions:
 jobs:
   benchmark:
     # Pinned commit of toymoa/1stskill-bench; the site accepts only allowed runner commits.
-    uses: "toymoa/1stskill-bench/.github/workflows/benchmark.yml@9c0090e2f1e9b3bf5a4f3474ac7baf853d11f5c4"
+    uses: "toymoa/1stskill-bench/.github/workflows/benchmark.yml@6e343cf5188feb6d7f4a390e3c4f246df6b9dc6e"
     with:
       # Your 1stskill.com nickname, and the skill folder if it is not the repository root.
       account: YOUR_1STSKILL_NICKNAME
